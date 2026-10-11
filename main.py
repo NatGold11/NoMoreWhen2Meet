@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 import requests 
 import re
 import datetime as dt
-from dateutil import parser
+# from dateutil import parser
 import os.path
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
