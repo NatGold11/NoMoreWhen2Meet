@@ -10,9 +10,9 @@ def main():
     if(response.status_code ==  200):
         soup = BeautifulSoup(response.text, "html.parser")
         grouptime_id = re.compile(r'^GroupTime')
-        times = [{divs['id']: divs['onmouseover'][21:].replace("\");", "")} for divs in soup.find_all("div", id=grouptime_id)]
+        dateTimes = [{divs['id']: divs['onmouseover'][21:].replace("\");", "")} for divs in soup.find_all("div", id=grouptime_id)]
 
-        for time in times:
+        for time in dateTimes:
             print(time)
 
 
