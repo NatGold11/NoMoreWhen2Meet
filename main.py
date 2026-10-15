@@ -11,8 +11,43 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+def getUserInput():
+    print("Welcome to NoMoreWhen2Meet")
+
+    url = ""
+    username = ""
+    password = ""
+    while True:
+        print("\nPlease enter your When2Meet URL: ")
+        url = input()
+        if "when2meet.com" in url:
+            break
+        else:
+            print("Invalid URL")
+    
+    while True:
+        print("\nPlease enter your desired When2Meet username: ")
+        username = input()
+        if len(username) > 0:
+            break
+        else:
+            print("Invalid username")
+
+    while True:
+        print("Please enter your desired When2Meet password, or leave blank to skip: ")
+        password = input()
+        if len(password) == 0:
+            password = None
+            break
+        else:
+            break
+
+    return (url, username, password)
+    
+
 def main():
-    url = "https://www.when2meet.com/?39099702-4okF1"
+    userInput = getUserInput()
+    url = userInput[0]
     response = requests.get(url)
     SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
