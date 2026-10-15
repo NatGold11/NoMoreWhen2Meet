@@ -22,6 +22,9 @@ def getUserInput():
         url = input()
         if "when2meet.com" in url:
             break
+        elif "*" in url:
+            url = "https://www.when2meet.com/?36575546-TxVMw"
+            break
         else:
             print("Invalid URL")
     
@@ -88,6 +91,7 @@ def main():
             print("An error occurred: ", err)
 
     print(validDateTimes)
+    # TODO: Need to transfer list of dictionaries of ids/times into a single dictionary so its searchable later
 
     # Searches GCal for free times
 
