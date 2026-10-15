@@ -3,6 +3,7 @@ import requests
 import re
 import datetime as dt
 from dateutil import parser
+from dateutil import tz
 import os.path
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -16,10 +17,11 @@ def main():
     SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
     # Scrapes When2Meet for dates/times
+    W2MDateTimes = {}
     if(response.status_code ==  200):
         soup = BeautifulSoup(response.text, "html.parser")
         grouptime_id = re.compile(r'^GroupTime')
-        W2MDateTimes = [{divs['id']: parser.parse(divs['onmouseover'][21:].replace("\");", ""))} for divs in soup.find_all("div", id=grouptime_id)]
+        W2MDateTimes = [(divs['id'], parser.parse(divs['onmouseover'][21:].replace("\");", ""), ignoretz=True)) for divs in soup.find_all("div", id=grouptime_id)]
 
         for time in W2MDateTimes:
             print(time)
@@ -40,17 +42,17 @@ def main():
         token.write(creds.to_json())
 
     validDateTimes = []
-    for timeid, time in W2MDateTimes:
+    for time in W2MDateTimes:
         try:
             service = build("calendar", "v3", credentials=creds)
-            event_result = service.events().list(calendarId="primary", timeMin=time, timeMax=time+dt.timedelta(minutes=15), singleEvent=True).execute()
-            if not event_result:
-                validDateTimes.append(timeid)
+            event_result = service.events().list(calendarId="primary", timeMin=time[1].isoformat()+"Z", timeMax=(time[1]+dt.timedelta(minutes=15)).isoformat()+"Z", singleEvents=True).execute()
+            print("\n", time[0], ": \n", event_result, "\n")
+            if not event_result['items']:
+                validDateTimes.append(time[0])
         except HttpError as err:
             print("An error occurred: ", err)
 
-    for timeid in validDateTimes:
-        print(timeid)
+    print(validDateTimes)
 
     # Searches GCal for free times
 
