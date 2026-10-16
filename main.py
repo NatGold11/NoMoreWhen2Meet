@@ -86,20 +86,14 @@ def main():
     validDateTimes = []
     try:
         service = build("calendar", "v3", credentials=creds)
-        # event_result = service.events().list(calendarId="primary", timeMin=time[1].isoformat()+"Z", timeMax=(time[1]+dt.timedelta(minutes=15)).isoformat()+"Z", singleEvents=True).execute()
         all_calendars = service.calendarList().list(minAccessRole="owner").execute()
         timeMin = W2MDateTimes[0][1].astimezone(tz('UTC')).isoformat()
         timeMax = (W2MDateTimes[len(W2MDateTimes)-1][1] + dt.timedelta(minutes=15)).astimezone(tz('UTC')).isoformat()
-        print(timeMin, " ", timeMax)
-        print(W2MDateTimes[0][1].isoformat()+"Z")
-        print(W2MDateTimes[len(W2MDateTimes)-1][1].isoformat()+"Z")
         for calendar in all_calendars['items']:
-            print(calendar['summary'])
             event_result = service.events().list(calendarId=calendar['id'], timeMin=timeMin, timeMax=timeMax, singleEvents=True).execute()
             print(event_result)
             for event in event_result['items']:
                 validDateTimes.append(event['summary'])
-        # print("\n", W2MDateTimes[0], ": \n", event_result, "\n")
         # if not event_result['items']:
         #     validDateTimes.append(time)
     except HttpError as err:
