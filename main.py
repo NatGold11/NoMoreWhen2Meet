@@ -10,6 +10,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from playwright.sync_api import sync_playwright
 
 def getUserInput():
     print("Welcome to NoMoreWhen2Meet")
@@ -23,7 +24,7 @@ def getUserInput():
         if "when2meet.com" in url:
             break
         elif "*" in url:
-            url = "https://www.when2meet.com/?36575546-TxVMw"
+            url = "https://www.when2meet.com/?39300665-esRbB"
             break
         else:
             print("Invalid URL")
@@ -51,6 +52,8 @@ def getUserInput():
 def main():
     userInput = getUserInput()
     url = userInput[0]
+    username = userInput[1]
+    password = userInput[2]
     response = requests.get(url)
     SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
@@ -59,10 +62,10 @@ def main():
     if(response.status_code ==  200):
         soup = BeautifulSoup(response.text, "html.parser")
         grouptime_id = re.compile(r'^GroupTime')
-        W2MDateTimes = [(divs['id'], parser.parse(divs['onmouseover'][21:].replace("\");", ""), ignoretz=True)) for divs in soup.find_all("div", id=grouptime_id)]
+        W2MDateTimes = [(divs['id'][9:], parser.parse(divs['onmouseover'][21:].replace("\");", ""), ignoretz=True)) for divs in soup.find_all("div", id=grouptime_id)]
 
-        for time in W2MDateTimes:
-            print(time)
+        # for time in W2MDateTimes:
+        #     print(time)
 
     # Sets up credentials/token for GCal access
     creds = None 
@@ -86,31 +89,24 @@ def main():
             event_result = service.events().list(calendarId="primary", timeMin=time[1].isoformat()+"Z", timeMax=(time[1]+dt.timedelta(minutes=15)).isoformat()+"Z", singleEvents=True).execute()
             print("\n", time[0], ": \n", event_result, "\n")
             if not event_result['items']:
-                validDateTimes.append(time[0])
+                validDateTimes.append(time)
         except HttpError as err:
             print("An error occurred: ", err)
 
     print(validDateTimes)
-    # TODO: Need to transfer list of dictionaries of ids/times into a single dictionary so its searchable later
+    
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(url)
+        page.fill('input#name', username)
+        if password is not None:
+            page.fill('input#password', password)
+        page.click('input[type=button]')
 
-    # Searches GCal for free times
-
-    # try:
-    #     service = build("calendar", "v3", credentials=creds)
-    #     now = dt.datetime.now().isoformat() + "Z"
-    #     event_result = service.events().list(calendarId="primary", timeMin=now, maxResults=10, singleEvents=True, orderBy="startTime").execute()
-    #     events = event_result.get("items", [])
-
-    #     if not events:
-    #         print("No upcoming events found")
-    #         return
-
-    #     for event in events:
-    #         start = event['start'].get('dateTime', event['start'].get('date'))
-    #         print(start, event["summary"])
-        
-    # except HttpError as err:
-    #     print("An error occurred: ", err)
+        for time in validDateTimes:
+            youId = "YouTime" + time[0]
+            page.click(f'div#{youId}')
 
 
 if __name__ == "__main__":
