@@ -124,16 +124,13 @@ def findAvailableTimes(W2MDateTimes, calDateTimes, calTz):
     for time in W2MDateTimes:
         timetable.update({time[1].astimezone(tz(calTz)):[time[0], True]})
 
-    print("Searching for available times: ")
-    for idx, event in enumerate(calDateTimes):
-        progress_bar(idx, len(calDateTimes))
+    for event in calDateTimes:
         currTime = event[0]
         while currTime <= event[1]:
             if currTime in timetable:
                 timetable[currTime][1] = False
             currTime = currTime + dt.timedelta(minutes=15)
 
-    print()
     print("Found available times ✓")
     return timetable
 
@@ -147,11 +144,14 @@ def submitValidTimes(username, password, url, validDateTimes):
             page.fill('input#password', password)
         page.click('input[type=button]')
 
-        for time in validDateTimes:
+        print("Filling out When2Meet...")
+        for idx, time in enumerate(validDateTimes):
+            progress_bar(idx, len(validDateTimes))
             if validDateTimes[time][1]:
                 youId = "YouTime" + validDateTimes[time][0]
                 page.click(f'div#{youId}')
 
+    print()
     print("Filled out When2Meet ✓")
 
 # <======================= MAIN ============================> #
@@ -162,6 +162,8 @@ def main():
     username = userInput[1]
     password = userInput[2]
     SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
+    print("\n<==============================================>")
 
     # Scrapes When2Meet for dates/times
     W2MDateTimes = scrapeW2M(url)
@@ -180,12 +182,13 @@ def main():
     # Uses website automation to select valid times
     submitValidTimes(username, password, url, validDateTimes)
 
-    print("\n<==============================================>\n")
+    print("<==============================================>\n")
     print("SUCCESS")
     print("URL: ", url)
     print("Username: ", username)
     if password is not None:
         print("Password: ", password)
+    print()
     
 
 
