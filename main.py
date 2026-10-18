@@ -12,6 +12,11 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from playwright.sync_api import sync_playwright
 
+def progress_bar(progress, total):
+    percent = int(100*(progress/float(total)))
+    bar = '█' * percent +  '-' * (100-percent)
+    print(f"\r|{bar}| {percent:.2f}%", end="\r")
+
 def getUserInput():
     print("Welcome to NoMoreWhen2Meet")
 
@@ -47,27 +52,21 @@ def getUserInput():
             break
 
     return (url, username, password)
-    
 
-def main():
-    userInput = getUserInput()
-    url = userInput[0]
-    username = userInput[1]
-    password = userInput[2]
+def scrapeW2M(url):
     response = requests.get(url)
-    SCOPES = ["https://www.googleapis.com/auth/calendar"]
-
-    # Scrapes When2Meet for dates/times
     W2MDateTimes = []
     if(response.status_code ==  200):
         soup = BeautifulSoup(response.text, "html.parser")
         grouptime_id = re.compile(r'^GroupTime')
         W2MDateTimes = [(divs['id'][9:], parser.parse(divs['onmouseover'][21:].replace("\");", ""), ignoretz=True)) for divs in soup.find_all("div", id=grouptime_id)]
 
-        for time in W2MDateTimes:
-            print(time[1])
+        # for time in W2MDateTimes:
+        #     print(time[1])
+    print("W2M page scraped ✓")
+    return W2MDateTimes
 
-    # Sets up credentials/token for GCal access
+def checkCreds(SCOPES):
     creds = None 
     if os.path.exists("token.json"):
         creds = Credentials.from_authorized_user_file("token.json", SCOPES)
@@ -82,37 +81,112 @@ def main():
     with open("token.json", "w") as token:
         token.write(creds.to_json())
 
+    return creds
 
-    validDateTimes = []
+def checkGCal(creds, W2MDateTimes):
+    calDateTimes = []
+    calTz = ""
     try:
         service = build("calendar", "v3", credentials=creds)
         all_calendars = service.calendarList().list(minAccessRole="owner").execute()
         timeMin = W2MDateTimes[0][1].astimezone(tz('UTC')).isoformat()
         timeMax = (W2MDateTimes[len(W2MDateTimes)-1][1] + dt.timedelta(minutes=15)).astimezone(tz('UTC')).isoformat()
+        tzCollected = False
         for calendar in all_calendars['items']:
             event_result = service.events().list(calendarId=calendar['id'], timeMin=timeMin, timeMax=timeMax, singleEvents=True).execute()
-            print(event_result)
+            print("Checking calendar: ", calendar['summary'], " ✓")
             for event in event_result['items']:
-                validDateTimes.append(event['summary'])
-        # if not event_result['items']:
-        #     validDateTimes.append(time)
+                # Skips event if all-day
+                if 'date' in event['start']:
+                    continue
+                if not tzCollected: 
+                    calTz = event['start']['timeZone']
+                    tzCollected = True
+                startTime = parser.parse(event['start']['dateTime'])
+                endTime = parser.parse(event['end']['dateTime'])
+                calDateTimes.append(
+                            (startTime - dt.timedelta(minutes=startTime.minute % 15,
+                                seconds=startTime.second,
+                                microseconds=startTime.microsecond), 
+                                endTime - dt.timedelta(minutes=endTime.minute % 15,
+                                seconds=endTime.second,
+                                microseconds=endTime.microsecond)))
     except HttpError as err:
         print("An error occurred: ", err)
 
-    print(validDateTimes)
-    
-    # with sync_playwright() as p:
-    #     browser = p.chromium.launch(headless=True)
-    #     page = browser.new_page()
-    #     page.goto(url)
-    #     page.fill('input#name', username)
-    #     if password is not None:
-    #         page.fill('input#password', password)
-    #     page.click('input[type=button]')
+    # print(calDateTimes)
+    print("Pulled GCal events ✓")
+    return (calDateTimes, calTz)
 
-    #     for time in validDateTimes:
-    #         youId = "YouTime" + time[0]
-    #         page.click(f'div#{youId}')
+def findAvailableTimes(W2MDateTimes, calDateTimes, calTz):
+    # timetable structure: {dateTime : [id, isValid]}
+    timetable = {}
+    for time in W2MDateTimes:
+        timetable.update({time[1].astimezone(tz(calTz)):[time[0], True]})
+
+    print("Searching for available times: ")
+    for idx, event in enumerate(calDateTimes):
+        progress_bar(idx, len(calDateTimes))
+        currTime = event[0]
+        while currTime <= event[1]:
+            if currTime in timetable:
+                timetable[currTime][1] = False
+            currTime = currTime + dt.timedelta(minutes=15)
+
+    print()
+    print("Found available times ✓")
+    return timetable
+
+def submitValidTimes(username, password, url, validDateTimes):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(url)
+        page.fill('input#name', username)
+        if password is not None:
+            page.fill('input#password', password)
+        page.click('input[type=button]')
+
+        for time in validDateTimes:
+            if validDateTimes[time][1]:
+                youId = "YouTime" + validDateTimes[time][0]
+                page.click(f'div#{youId}')
+
+    print("Filled out When2Meet ✓")
+
+# <======================= MAIN ============================> #
+
+def main():
+    userInput = getUserInput()
+    url = userInput[0]
+    username = userInput[1]
+    password = userInput[2]
+    SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
+    # Scrapes When2Meet for dates/times
+    W2MDateTimes = scrapeW2M(url)
+
+    # Sets up credentials/token for GCal access
+    creds = checkCreds(SCOPES)
+
+    # Calls GCal API and builds list of event times within W2M duration
+    calInfo = checkGCal(creds, W2MDateTimes)
+    calDateTimes = calInfo[0]
+    calTz = calInfo[1]
+
+    # Creates list of available times 
+    validDateTimes = findAvailableTimes(W2MDateTimes, calDateTimes, calTz)
+    
+    # Uses website automation to select valid times
+    submitValidTimes(username, password, url, validDateTimes)
+
+    print("\n<==============================================>\n")
+    print("SUCCESS")
+    print("URL: ", url)
+    print("Username: ", username)
+    if password is not None:
+        print("Password: ", password)
+    
 
 
 if __name__ == "__main__":
