@@ -88,7 +88,7 @@ def checkGCal(creds, W2MDateTimes):
     calTz = ""
     try:
         service = build("calendar", "v3", credentials=creds)
-        all_calendars = service.calendarList().list(minAccessRole="owner").execute()
+        all_calendars = service.calendarList().list(minAccessRole="reader").execute()
         timeMin = W2MDateTimes[0][1].astimezone(tz('UTC')).isoformat()
         timeMax = (W2MDateTimes[len(W2MDateTimes)-1][1] + dt.timedelta(minutes=15)).astimezone(tz('UTC')).isoformat()
         tzCollected = False
